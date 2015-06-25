@@ -4,7 +4,7 @@ import (
 	"log"
 	"log/syslog"
 	"os"
-	"ts/rlog/mongodb"
+	"raoptimus/rlog/mongodb"
 )
 
 type LoggerType int
