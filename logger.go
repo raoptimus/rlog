@@ -1,10 +1,10 @@
 package rlog
 
 import (
+	"github.com/raoptimus/rlog/mongodb"
 	"log"
 	"log/syslog"
 	"os"
-	"raoptimus/rlog/mongodb"
 )
 
 type LoggerType int
