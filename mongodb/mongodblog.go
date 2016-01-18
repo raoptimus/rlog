@@ -5,6 +5,7 @@ import (
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 	"log"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -93,9 +94,8 @@ func Dial(url string, priority Priority, tag string) (*Writer, error) {
 	return w, err
 }
 
-// connect makes a connection to the syslog server.
-// It must be called with w.mu held.
-func (w *Writer) connect() (err error) {
+// connect makes a connection to the mongodb log server.
+func (w *Writer) connect() error {
 	if w.conn != nil {
 		// ignore err from close, it makes sense to continue anyway
 		w.conn.close()
@@ -108,31 +108,59 @@ func (w *Writer) connect() (err error) {
 	if w.url == "" {
 		w.url = w.hostname + "/rlogs"
 	}
-	session, err := mgo.Dial(w.url)
-	if err == nil {
 
-		session.SetMode(mgo.Eventual, true)
-		c := session.DB("").C("Log")
-		err = c.Create(&mgo.CollectionInfo{
-			Capped:   true,
-			MaxDocs:  10000,
-			MaxBytes: 5242880,
-		})
-		if err != nil {
-			if err.Error() != "collection already exists" {
-				return
-			}
-			err = nil
-		}
-		c.EnsureIndex(mgo.Index{
-			Key:         []string{"-Time"},
-			Background:  true,
-			ExpireAfter: time.Duration(30 * 24 * time.Hour),
-		})
-		w.conn = &netConn{conn: session, col: c}
+	u, err := url.Parse("mongodb://" + w.url)
+	if err != nil {
+		errors.New("Connection string (" + w.url + ") of mongodb is not correct: " + err.Error())
 	}
 
-	return
+	options := u.Query()
+	options.Del("w")
+	options.Del("readPreference")
+
+	log.Println(u.Host + u.Path + "?" + options.Encode())
+	session, err := mgo.Dial(u.Host + u.Path + "?" + options.Encode())
+	if err != nil {
+		return errors.New("Can't connect to mongodb (" + w.url + "): " + err.Error())
+	}
+
+	session.SetSafe(&mgo.Safe{
+		W: -1,
+	})
+
+	switch {
+	case options.Get("replicaSet") != "":
+		session.SetMode(mgo.Monotonic, true)
+	default:
+		session.SetMode(mgo.Strong, true)
+	}
+
+	c := session.DB("").C("Log")
+	err = c.Create(&mgo.CollectionInfo{
+		Capped:   true,
+		MaxDocs:  10000,
+		MaxBytes: 5242880,
+	})
+	if err != nil {
+		if err.Error() != "collection already exists" {
+			return errors.New("Can't create the mongo collection Log: " + err.Error())
+		}
+	}
+	ixs, _ := c.Indexes()
+	for _, ix := range ixs {
+		if ix.ExpireAfter > 0 {
+			c.DropIndexName(ix.Name)
+			break
+		}
+	}
+
+	c.EnsureIndex(mgo.Index{
+		Key:        []string{"-Time"},
+		Background: true,
+		//		ExpireAfter: time.Duration(30 * 24 * time.Hour), //do not supported with capped collections
+	})
+	w.conn = &netConn{conn: session, col: c}
+	return nil
 }
 
 // Write sends a log message to the syslog daemon.
