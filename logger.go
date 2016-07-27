@@ -18,6 +18,7 @@ const (
 
 type (
 	stdWriter struct {
+		flag int
 	}
 	writer interface {
 
@@ -60,15 +61,27 @@ type (
 	}
 )
 
-func NewLogger(t LoggerType, config string) (*Logger, error) {
-	return NewLoggerDial(t, "", "", "")
+const (
+	LOG_ALL uint32 = 1 << (32 - 1 - iota)
+	LOG_EMERG
+	LOG_ALERT
+	LOG_CRIT
+	LOG_ERR
+	LOG_WARNING
+	LOG_NOTICE
+	LOG_INFO
+	LOG_DEBUG
+)
+
+func NewLogger(t LoggerType, config string, flag int) (*Logger, error) {
+	return NewLoggerDial(t, "", "", "", flag)
 }
 
-func NewLoggerDial(t LoggerType, network, raddrOrUrl, tag string) (*Logger, error) {
+func NewLoggerDial(t LoggerType, network, addrOrUrl, tag string, flag int) (*Logger, error) {
 	switch t {
 	case LoggerTypeMongoDb:
 		{
-			w, err := mongodb.Dial(raddrOrUrl, mongodb.LOG_EMERG, tag)
+			w, err := mongodb.Dial(addrOrUrl, mongodb.LOG_EMERG, tag)
 			if err != nil {
 				return nil, err
 			}
@@ -80,7 +93,7 @@ func NewLoggerDial(t LoggerType, network, raddrOrUrl, tag string) (*Logger, erro
 		}
 	case LoggerTypeSyslog:
 		{
-			w, err := syslog.Dial(network, raddrOrUrl, syslog.LOG_EMERG, tag)
+			w, err := syslog.Dial(network, addrOrUrl, syslog.LOG_EMERG, tag)
 			if err != nil {
 				return nil, err
 			}
@@ -92,44 +105,63 @@ func NewLoggerDial(t LoggerType, network, raddrOrUrl, tag string) (*Logger, erro
 		}
 	default:
 		{
-			ret := &Logger{}
-			ret.Logger = log.New(os.Stderr, "", log.LstdFlags)
-			ret.writer = &stdWriter{}
+			ret := &Logger{
+				Logger: log.New(os.Stderr, "", log.LstdFlags),
+				writer: &stdWriter{
+					flag: flag,
+				},
+			}
 			return ret, nil
 		}
 	}
 }
 
 func (s *stdWriter) Emerg(m string) (err error) {
-	log.Println("emerg->", m)
+	if s.flag&LOG_ALL|s.flag&LOG_EMERG != 0 {
+		log.Println("emerg->", m)
+	}
 	return nil
 }
 
 func (s *stdWriter) Alert(m string) (err error) {
-	log.Println("alert->", m)
+	if s.flag&LOG_ALL|s.flag&LOG_ALERT != 0 {
+		log.Println("alert->", m)
+	}
 	return nil
 }
 func (s *stdWriter) Crit(m string) (err error) {
-	log.Println("critical->", m)
+	if s.flag&LOG_ALL|s.flag&LOG_CRIT != 0 {
+		log.Println("critical->", m)
+	}
 	return nil
 }
 func (s *stdWriter) Err(m string) (err error) {
-	log.Println("error->", m)
+	if s.flag&LOG_ALL|s.flag&LOG_ERR != 0 {
+		log.Println("error->", m)
+	}
 	return nil
 }
 func (s *stdWriter) Warning(m string) (err error) {
-	log.Println("warning->", m)
+	if s.flag&LOG_ALL|s.flag&LOG_WARNING != 0 {
+		log.Println("warning->", m)
+	}
 	return nil
 }
 func (s *stdWriter) Notice(m string) (err error) {
-	log.Println("notice->", m)
+	if s.flag&LOG_ALL|s.flag&LOG_NOTICE != 0 {
+		log.Println("notice->", m)
+	}
 	return nil
 }
 func (s *stdWriter) Info(m string) (err error) {
-	log.Println("info->", m)
+	if s.flag&LOG_ALL|s.flag&LOG_INFO != 0 {
+		log.Println("info->", m)
+	}
 	return nil
 }
 func (s *stdWriter) Debug(m string) (err error) {
-	log.Println("debug->", m)
+	if s.flag&LOG_ALL|s.flag&LOG_DEBUG != 0 {
+		log.Println("debug->", m)
+	}
 	return nil
 }
