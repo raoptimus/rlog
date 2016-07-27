@@ -18,7 +18,7 @@ const (
 
 type (
 	stdWriter struct {
-		flag int
+		flag uint32
 	}
 	writer interface {
 
@@ -73,11 +73,11 @@ const (
 	LOG_DEBUG
 )
 
-func NewLogger(t LoggerType, config string, flag int) (*Logger, error) {
+func NewLogger(t LoggerType, config string, flag uint32) (*Logger, error) {
 	return NewLoggerDial(t, "", "", "", flag)
 }
 
-func NewLoggerDial(t LoggerType, network, addrOrUrl, tag string, flag int) (*Logger, error) {
+func NewLoggerDial(t LoggerType, network, addrOrUrl, tag string, flag uint32) (*Logger, error) {
 	switch t {
 	case LoggerTypeMongoDb:
 		{
